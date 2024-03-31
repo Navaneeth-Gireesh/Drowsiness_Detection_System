@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drowsiness Detection System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif; /* Changed font to Montserrat */
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5; /* Updated background color */
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            flex-direction: column; /* Added */
+            transition: background-color 0.5s, color 0.5s; /* Smooth transition */
+        }
+
+        #main-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%; /* Adjusted width to occupy full screen */
+            height: 100vh; /* Adjusted height to occupy full screen */
+        }
+
+        .side-container {
+            flex: 1;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            margin: 0 5px; /* Adjusted margin */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            background-color: #fff; /* Updated background color */
+        }
+
+        #middle-container {
+            flex: 3;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            margin: 0 5px; /* Adjusted margin */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            background-color: #fff; /* Updated background color */
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            text-align: center; /* Centered heading */
+            color: #007bff; /* Heading color */
+        }
+
+        #video-feed {
+            position: relative;
+            width: 70%;
+            border: 5px solid #007bff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        #video-feed img {
+            display: block;
+            width: 100%; /* Ensure the video feed takes the full width of its container */
+            height: auto; /* Automatically adjust the height to maintain aspect ratio */
+            outline: none; /* Remove any default outline */
+        }
+
+        #alert-message {
+            font-size: 1.2rem;
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 0, 0, 0.1);
+            padding: 10px 20px;
+            border-radius: 10px;
+            display: none;
+            animation: blink 1s infinite; /* Added animation */
+        }
+
+        @keyframes blink {
+            0% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+
+        #time {
+            font-size: 2rem;
+            background-color: #008cff;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            margin-bottom: 10px; /* Reduced margin */
+            text-align: center; /* Centered time */
+        }
+
+        #date {
+            font-size: 1.5rem;
+            color: #007bff;
+            margin-bottom: 20px; /* Increased margin */
+            text-align: center; /* Centered date */
+        }
+
+        /* Dark theme styles */
+        .dark-theme {
+            background-color: #333;
+            color: #fff;
+        }
+
+        .dark-theme .side-container {
+            background-color: #444;
+            color: #fff; /* Adjust text color */
+        }
+
+        .dark-theme h1 {
+            color: #00ff00;
+        }
+
+        .dark-theme #middle-container {
+            background-color: #444;
+            color: #fff; /* Adjust text color */
+        }
+
+        /* Styling for the theme change button */
+        #theme-change-btn {
+            background-color: #98c9fc;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        #theme-change-btn:hover {
+            background-color: #7eec89;
+        }
+
+        /* Add more styles for dark theme as needed */
+    </style>
+</head>
+<body>
+<div id="main-container">
+    <div class="side-container" id="weather-container">
+        <h2 style="color: #00c8bb;">Weather Details</h2> <!-- Updated font color -->
+        <p id="weather-info">Loading...</p>
+    </div>
+    <div id="middle-container">
+        <h1 style="color: #00aeff;">Drowsiness Detection System</h1> <!-- Updated font color -->
+        <div id="video-feed">
+            <img id="video-feed-img" src="{% url 'video_feed' %}" alt="Video Feed">
+            <div id="alert-message"></div>
+        </div>
+        <div id="time"></div>
+        <div id="date"></div> <!-- Added date display -->
+    </div>
+    <div class="side-container">
+        <!-- Content for right container -->
+        <button id="theme-change-btn">Change Theme</button>
+    </div>
+</div>
+<script>
+    // Immediately invoked function expression to avoid global namespace pollution
+    (function () {
+        let alertBlinkInterval;
+        let isAlertActive = false;
+
+        window.onload = function () {
+            startVideoFeed();
+            updateTime();
+            setInterval(updateTime, 1000);
+
+            // Add event listener for theme change button
+            document.getElementById('theme-change-btn').addEventListener('click', toggleTheme);
+            
+            // Fetch weather details on page load
+            fetchWeather();
+        };
+
+        function startVideoFeed() {
+            setInterval(checkAlert, 10000);
+        }
+
+        function checkAlert() {
+            fetch("{% url 'alert_feed' %}")
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const alertMessage = document.getElementById('alert-message');
+
+                    if (data.message !== '') {
+                        alertMessage.textContent = data.message;
+                        isAlertActive = true;
+
+                        // Start blinking effect only when the alert is active
+                        startBlinking(alertMessage);
+                    } else {
+                        alertMessage.textContent = '';
+                        isAlertActive = false;
+
+                        // Stop blinking when the alert is not active
+                        stopBlinking();
+                    }
+
+                    // Reload the video feed only if there is no active alert
+                    if (!isAlertActive) {
+                        document.getElementById('video-feed-img').src = "{% url 'video_feed' %}" + "?" + new Date().getTime();
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function startBlinking(element) {
+            let visible = true;
+
+            // Start blinking interval
+            alertBlinkInterval = setInterval(() => {
+                if (visible) {
+                    element.style.display = 'none';
+                } else {
+                    element.style.display = 'block';
+                }
+
+                visible = !visible;
+            }, 500);  // Adjust the interval duration (milliseconds) for blinking speed
+        }
+
+        function stopBlinking() {
+            // Stop blinking interval
+            clearInterval(alertBlinkInterval);
+        }
+
+        function updateTime() {
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const formattedHours = hours % 12 || 12;
+            const timeString = `${formattedHours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
+            document.getElementById('time').textContent = timeString;
+
+            const month = now.toLocaleString('default', { month: 'long' });
+            const date = now.getDate();
+            const year = now.getFullYear();
+            const dateString = `${month} ${date}, ${year}`;
+            document.getElementById('date').textContent = dateString;
+        }
+
+        // Function to toggle between light and dark themes
+        function toggleTheme() {
+            document.body.classList.toggle('dark-theme');
+        }
+        
+        // Function to fetch weather details
+        function fetchWeather() {
+            // Get device's current location
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const { latitude, longitude } = position.coords;
+                    const apiKey = 'e332c07aa5e644f3981110012241003'; // Your weather API key
+                    const apiUrl = `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${latitude},${longitude}&aqi=no`;
+                    
+                    // Fetch weather data
+                    fetch(apiUrl)
+                        .then(response => response.json())
+                        .then(data => {
+                            const weatherContainer = document.getElementById('weather-container');
+                            const weatherInfo = document.getElementById('weather-info');
+                            const { temp_c, condition 
+                            } = data.current;
+                            
+                            // Update weather details in the DOM
+                            weatherInfo.innerHTML = `Temperature: ${temp_c}°C<br>Condition: ${condition.text}`;
+                        })
+                        .catch(error => console.error('Error fetching weather data:', error));
+                });
+            } else {
+                console.error('Geolocation is not supported by this browser.');
+            }
+        }
+    })();
+</script>
+<footer>
+    <p>&copy; 2024 Team 11 (Hindusthan Institute of Technology). All rights reserved.</p>
+</footer>
+</body>
+</html>
